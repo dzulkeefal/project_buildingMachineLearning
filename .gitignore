@@ -1,2 +1,3 @@
 # Default ignored files
 results/
+**/__pycache__/
