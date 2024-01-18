@@ -1,3 +1,11 @@
-# Default ignored files
+# Default ignored files and folders
+*.pvsm
 results/
 **/__pycache__/
+results_backup/
+results_solInterpolation/
+extraScripts/
+simulations/
+literatureReview/
+results_rotateGeom/
+Extra/
