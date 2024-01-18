@@ -149,22 +149,31 @@ def correctNoSlipsquare_sizeCondition(array,coords,bounds):
         if abs(coords[irow,0]) == bounds or abs(coords[irow,1]) == bounds:
             array[irow] = 0.0
     return array
+
+def subtractMean(array,mean):
+    aux = np.copy(array)
+    array = np.subtract(aux,mean)
+    return array
+
+def addMean(array,mean):
+    aux = np.copy(array)
+    array = np.add(aux,mean)
+    return array
 #%% MAIN
 
 # User inputs
 field = "U"                                            # fields available: U, P
 angle_new = 60
 use_SVD = True                                         # perform SVD or not
-subtract_mean = False                                  # subtract mean for SVD
+subtract_mean = True                                  # subtract mean for SVD
 interp_method = 'Rbf'                                  # interp_quad, lagrange,Rbf
 grados = [0,30,90,120,150,180]                         # angles available: 0,30,60,90,120,150,180
 fillValue = 1000                                       # random high value to fill-in my mesh interpolator
-dofr = 0                                               # degrees of freedom of ROM
 ric = 1.00                                             # information content to retain in the POD modes 
 mesh_interpolation = 'cubic'                           # interpolation to be used by griddata
 npoins = 100                                           # no of points for created Structured reference mesh
 # rotateMesh = True
-# useRefMeshForProjection = True
+useRefMeshForProjection = True
 
 results_folder = 'results_rotateGeom'
 root_data = fr"{cwd}\{results_folder}"  
@@ -178,17 +187,19 @@ for filename in glob.glob(fr'{results_folder}\*_reference_*.vtk'):
 for filename in glob.glob(fr'{results_folder}\*interp.vtk'):
    os.remove(filename)  
      
-# Copy the mesh file for unknown angle and delete the fields
-src = fr'{results_folder}\{field}_surfaces_{angle_new}.vtk'
-dst = fr'{results_folder}\{field}_reference_{angle_new}.vtk'
-shutil.copy(src, dst)
-file = "{}_reference_{}.vtk".format(field, angle_new)
-f_vtk.delete_fields(root_data, file, field) 
+# Copy the mesh file 0 degree and unknown angle and delete the fields
+angles_forFieldRemoval = [0,angle_new]
+for iangle in angles_forFieldRemoval:
+    src = fr'{results_folder}\{field}_surfaces_{iangle}.vtk'
+    dst = fr'{results_folder}\{field}_reference_{iangle}.vtk'
+    shutil.copy(src, dst)
+    file = "{}_reference_{}.vtk".format(field, angle_new)
+    # f_vtk.delete_fields(root_data, file, field) 
 
 # Create the Reference Mesh
 # read a case mesh to find the boundaries of the domain for reference mesh
 files = ["{}_surfaces_{}".format(field, grado) for grado in grados]
-_, coords_ref = f_vtk.files_vtk_to_array(root_data, [f'reference_{field}'],getCoords=True)   # case of 0 degree
+_, coords_ref = f_vtk.files_vtk_to_array(root_data, [f'{field}_reference_0'],getCoords=True)   # case of 0 degree
 # create the structured mesh
 x_max = max(coords_ref[:,0])
 x_min = min(coords_ref[:,0])
@@ -198,11 +209,12 @@ radius = max(abs(x_max),abs(x_min), abs(y_max), abs(y_min))                    #
 coords_refMesh = createStructuredMesh(radius,npoins,shape='circular')
 coords_ref = coords_refMesh
 
-# Calculating mesh projection error for 0 degree case
-field_true, coords_test = f_vtk.files_vtk_to_array(root_data, ['U_surfaces_0'],getCoords=True)
+# Calculating mesh projection error for 0, angle_new degree case
+angle_forMeshProjectionTest = angle_new
+field_true, coords_test = f_vtk.files_vtk_to_array(root_data, [f'{field}_surfaces_{angle_forMeshProjectionTest}'],getCoords=True)
 field_true_interpolated = projectFieldToNewMesh(coords_test, field_true, coords_ref, mesh_interpolation ,fillValue, rescale=True)
 field_true_projected = projectFieldToNewMesh(coords_ref, field_true_interpolated, coords_test, mesh_interpolation ,fillValue, rescale=True)
-# dir_new_file = f_vtk.array_to_file_vtk_rotated(root_data, field_true_projected, field, angle_new)
+dir_new_file = f_vtk.array_to_file_vtk(root_data, f'{field}_reference_{angle_forMeshProjectionTest}', f'{field}_angle_{angle_forMeshProjectionTest}_meshProjection',field_true_projected, field)
 diff_fieldMeshProjected = np.subtract(field_true[:,0],field_true_projected[:,0])
 diff_fieldMeshProjected_norm = np.linalg.norm(diff_fieldMeshProjected,2)/np.linalg.norm(field_true,2)
 
@@ -232,11 +244,8 @@ if use_SVD:
     # subtract mean from training data
     if subtract_mean:
         data_training_mean = np.mean(data_training,axis=1)
-        aux = np.copy(data_training)
         for icol in range (data_training.shape[1]):
-            print(data_training.shape[1])
-            data_training[:,icol] = np.subtract(aux[:,icol],data_training_mean)
-            
+            data_training[:,icol] = subtractMean(data_training[:,icol], data_training_mean)
     # descomposición svd
     u, s, vt = np.linalg.svd(data_training, full_matrices=False)
     
@@ -255,7 +264,7 @@ if use_SVD:
     for u_column in range(u.shape[1]):
         imode = imode+1
         new_file = "{}_mode_{}".format(field, u_column+1)
-        dir_new_file = f_vtk.array_to_file_vtk(root_data, u[:, u_column], new_file, field)
+        dir_new_file = f_vtk.array_to_file_vtk(root_data,f'{field}_reference_0', new_file, u[:, u_column], field)
     
     A_coef = np.matmul(np.transpose(u[:,:dofr]), data_training)    # coefficient matrix excluding the last basis function
     
@@ -285,16 +294,19 @@ if use_SVD:
     # obtenemos el nuevo campo:
     field_new_unrotated = np.matmul(u[:,:dofr], np.array(new_coef).reshape(-1, 1)) 
     if subtract_mean:
-        aux = np.add(field_new_unrotated[:,0],data_training_mean)            # adding mean
-        field_new_unrotated[:,0] = aux.copy()
+        field_new_unrotated[:,0] = addMean(field_new_unrotated[:,0], data_training_mean)    #add mean
 
     # comparing basis projection error, this is the minimum error ROM can achieve
     field_true, coords_test = f_vtk.files_vtk_to_array(root_data, file_test,getCoords=True)
     field_true_interpolated = projectFieldToNewMesh(coords_test, field_true, coords_ref, mesh_interpolation ,fillValue, rescale=True)
-    actual_coef = np.matmul(np.transpose(u[:,:dofr]), field_true_interpolated)
+    if subtract_mean:
+        field_true_interpolated[:,0] = subtractMean(field_true_interpolated[:,0], data_training_mean) 
+    actual_coef = np.matmul(np.transpose(u[:,:dofr]), field_true_interpolated)   
     field_true_recreated = np.matmul(u[:,:dofr], actual_coef)
+    if subtract_mean:
+        field_true_recreated[:,0] = addMean(field_true_recreated[:,0], data_training_mean) 
     field_true_recreated_interpolated = projectFieldToNewMesh(coords_ref, field_true_recreated, coords_test, mesh_interpolation ,fillValue, rescale=True)
-    # dir_new_file = f_vtk.array_to_file_vtk_rotated(root_data, field_true_recreated_interpolated, field, angle_new)
+    dir_new_file = f_vtk.array_to_file_vtk(root_data,f'{field}_reference_{angle_new}' ,f'{field}_angle_{angle_new}_romRecreated',field_true_recreated_interpolated, field)
     diff_fieldRecreated = np.subtract(field_true[:,0],field_true_recreated_interpolated[:,0])
     diff_fieldRecreated_norm = np.linalg.norm(diff_fieldRecreated,2)/np.linalg.norm(field_true,2)
     diff_coeffRecreated = np.subtract(actual_coef[:,0],new_coef[:,0])
@@ -326,4 +338,4 @@ diff_fieldInterp = np.subtract(field_true[:,0],field_new[:,0])
 diff_fieldInterp_norm = np.linalg.norm(diff_fieldInterp,2)/np.linalg.norm(field_true,2)
 
 # Vamos a crear el nuevo fichero vtk con el nuevo campo a angle_new grados
-dir_new_file_rotated = f_vtk.array_to_file_vtk_rotated(root_data, field_new, field, angle_new)  
+dir_new_file_rotated = f_vtk.array_to_file_vtk(root_data, f'{field}_reference_{angle_new}',f'{field}_angle_{angle_new}_interp', field_new, field)  

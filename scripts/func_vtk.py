@@ -194,7 +194,7 @@ def files_vtk_to_array(root_data, files, getCoords = False):
 
 # ************************** RECONSTRUCTION FICHERO VTK CON EL NUEVO FIELD *****************************
 
-def array_to_file_vtk(root_data, new_array, new_file, field):
+def array_to_file_vtk(root_data, old_file, new_file,new_array,field):
     """
 
     function: array_to_file_vtk
@@ -206,7 +206,7 @@ def array_to_file_vtk(root_data, new_array, new_file, field):
         root_data: Lugar donde se encuentra el fichero vtk de referencia
         new_array: Nuevo array para definir en el field.
         new_file:  Nombre que tomará el nuevo fichero a guardar con el new_array
-
+        old_file: The file in which to write the new array    
     Output:
 
         new_dir_file: Retorna la dirección completa del nuevo fichero vtk.
@@ -217,87 +217,8 @@ def array_to_file_vtk(root_data, new_array, new_file, field):
 
     # print("Estamos en array_to_file_vtk\n")
 
-    dir_file = os.path.join(root_data, "reference_{}.vtk".format(field))
-    new_dir_file = os.path.join(root_data, new_file + ".vtk")
-
-    # Creamos un lector del actual fichero .vtk
-    reader = vtk.vtkPolyDataReader()
-    reader.SetFileName(dir_file)
-    reader.Update()
-    # Obtenemos los valores dentro que pueden ser tanto los fields como la malla.
-    polydata = reader.GetOutput()
-    # Obtenemos los valores del field
-    point_data = polydata.GetPointData()
-
-    # Si tenemos el array p hacemos lo siguiente:
-    if point_data.HasArray("p"):
-        # Obtenemos el field p
-        scalarField_pdata = point_data.GetArray("p")
-        # Y lo convertimos a un array
-        scalarField_vector = vtk_to_numpy(scalarField_pdata)
-
-        scalarField_vector[:] = new_array[:]
-
-        scalarField_pdata.Modified()
-
-        # Creamos un writer para crear un nuevo fichero vtk con el nuevo polydata
-        writer = vtk.vtkPolyDataWriter()
-        writer.SetFileName(new_dir_file)
-        writer.SetInputData(polydata)
-        writer.Write()
-
-    # Si tenemos el array T hacemos lo siguiente:
-    elif point_data.HasArray("T"):
-        # Obtenemos el field T
-        scalarField_pdata = point_data.GetArray("T")
-        # Y lo convertimos a un array
-        scalarField_vector = vtk_to_numpy(scalarField_pdata)
-        # Pasamos el nuevo array a nuestro campo
-        scalarField_vector[:] = new_array[:]
-        # Le hacemos saber a vtk que hemos hecho esa modificación para que lo tenga en cuenta:
-        scalarField_pdata.Modified()
-
-        # Creamos un writer para crear un nuevo fichero vtk con el nuevo polydata
-        writer = vtk.vtkPolyDataWriter()
-        writer.SetFileName(new_dir_file)
-        writer.SetInputData(polydata)
-        writer.Write()
-
-    # Si tenemos el array T hacemos lo siguiente:
-    elif point_data.HasArray("U"):
-
-        wr_poldata_vector_to_scal(polydata, new_array, new_dir_file, field)
-
-    return new_dir_file
-
-
-def array_to_file_vtk_rotated(root_data, new_array, field, new_angle):
-    """
-
-    function: array_to_file_vtk
-
-    Descripción: Esta función convierte un array columna a un field de vtk y lo añade a un fichero de referencia.
-
-    Input:
-
-        root_data: Lugar donde se encuentra el fichero vtk de referencia
-        new_array: Nuevo array para definir en el field.
-        new_file:  Nombre que tomará el nuevo fichero a guardar con el new_array
-
-    Output:
-
-        new_dir_file: Retorna la dirección completa del nuevo fichero vtk.
-
-        Además, la función escribe un nuevo fichero vtk con los valores de new_array y el nombre de new_file.
-
-    """
-
-
-    # print("Estamos en array_to_file_vtk\n")
-
-    new_file = "{}_angle_{}_interp".format(field, new_angle)
-    dir_file = os.path.join(root_data, "{}_reference_{}.vtk".format(field, new_angle))
-    new_dir_file = os.path.join(root_data, new_file + ".vtk")
+    dir_file = os.path.join(root_data, f'{old_file}.vtk'.format(field))
+    new_dir_file = os.path.join(root_data, f'{new_file}.vtk')
 
     # Creamos un lector del actual fichero .vtk
     reader = vtk.vtkPolyDataReader()
