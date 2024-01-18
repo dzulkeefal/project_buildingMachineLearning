@@ -163,8 +163,8 @@ dofr = 0                                               # degrees of freedom of R
 ric = 1.00                                             # information content to retain in the POD modes 
 mesh_interpolation = 'cubic'                           # interpolation to be used by griddata
 npoins = 100                                           # no of points for created Structured reference mesh
-rotateMesh = True
-useRefMeshForProjection = True
+# rotateMesh = True
+# useRefMeshForProjection = True
 
 results_folder = 'results_rotateGeom'
 root_data = fr"{cwd}\{results_folder}"  
