@@ -2,9 +2,17 @@
 """
 Created on Thu Apr 27 15:20:16 2023
 
-@author: Workstation5
+@author: RDT Simulations
 """
+#%%  REMOVE DATA FROM PREVIOUS RUN
+try:
+    from IPython import get_ipython
+    get_ipython().magic('clear')
+    get_ipython().run_line_magic('reset -f')
+except:
+    pass
 
+#%%  IMPORT DEPENDENCIES
 import sys
 import pandas as pd
 import os
@@ -16,6 +24,7 @@ import numpy as np
     de archivos vtk'''
 
 
+#%%  FUNCTIONS
 def poldata_comp_vect_mag(polydata, field):
     """
     function:  poldata_comp_vect_mag
@@ -270,6 +279,15 @@ def array_to_file_vtk(root_data, old_file, new_file,new_array,field):
 
     return new_dir_file
 
+def plotFieldInParaview(case, field_new,wind_dir):
+    root_data = fr'{case.root_data}\{case.folder_evaluation}'  
+    field = case.field
+    month = case.month
+    day = case.day
+    hour = case.hour
+    file_new = f'{field}_{hour}_{day}_{month}_angle_{wind_dir}'
+    array_to_file_vtk(root_data, f'{field}_reference_0',file_new, field_new, field)  
+    return
 # ************************** LIMPIEZA PARA FICHERO DE REFERENCIA *****************************
 
 def delete_fields(root_data, file, field):
