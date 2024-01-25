@@ -448,27 +448,20 @@ def trainModel(case,data_training):
         writeCoefs(A_coef, fr'{root_data}\{file_coefs}')
     return 
 
-def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity=True,compare_results = False):     
+def readTrainedData(case):
     # User inputs
-    field = case.field                                            # fields available: U, P
-    angle_new = wind_dir
-    wind_ref = case.wind_ref
     use_SVD = case.use_SVD                                         # perform SVD or not
     subtract_mean = case.subtract_mean                                   # subtract mean for SVD
+    ric = case.ric                                             # information content to retain in the POD modes 
     interp_method = case.interp_method                                  # interp_quad, lagrange,Rbf
     grados = case.grados                                    # angles available
-    fillValue = case.fillValue                                       # random high value to fill-in my mesh interpolator
-    ric = case.ric                                             # information content to retain in the POD modes 
-    mesh_interpolation = case.mesh_interpolation                           # interpolation to be used by griddata
-    rotateMesh = case.rotateMesh
     useRefMeshForProjection = case.useRefMeshForProjection
     root_data = fr'{case.root_data}\{case.folder_evaluation}'  
-    file_test = case.file_test 
     file_refMesh = case.file_refMesh
     file_basis = case.file_basis
     file_coefs = case.file_coefs
     file_boun = case.file_boun
-
+    
     if use_SVD:
         s = readEigenValues(fr'{root_data}\{file_basis}')
         # finding the no. of modes to retain
@@ -479,15 +472,16 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
         while energy < energy_req:
             energy = energy + s[idofr-1]
             idofr = idofr+1 
-        dofr = idofr-1
+        case.dofr = idofr-1
         
+        case.s = s[:idofr].copy()
         # read data
-        u = readBasis(dofr, fr'{root_data}\{file_basis}')
-        A_coef = readCoef(fr'{root_data}\{file_coefs}',dofr=dofr)                   
-        if subtractMean: data_training_mean = readMean(fr'{root_data}\{file_basis}')
+        case.u = readBasis(case.dofr, fr'{root_data}\{file_basis}')
+        case.A_coef = readCoef(fr'{root_data}\{file_coefs}',dofr=case.dofr)                   
+        if subtract_mean: case.data_training_mean = readMean(fr'{root_data}\{file_basis}')
         if useRefMeshForProjection: 
-            coords_ref = readMesh(fr'{root_data}\{file_refMesh}')
-            boundaryNodes = readBoundaryNodes(fr'{root_data}\{file_boun}')
+            case.coords_ref = readMesh(fr'{root_data}\{file_refMesh}')
+            case.boundaryNodes = readBoundaryNodes(fr'{root_data}\{file_boun}')
 
         # # Plotting coefficients    
         # isample = np.arange(1,A_coef.shape[1]+1)
@@ -499,23 +493,46 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
         # # Vamos a ver la importancia de los distintos modos    
         # plt_lib.plot_cum_exp(s)
         
+        if use_SVD:
+            # determine the interpolation function
+            for i in range(case.A_coef.shape[0]):
+                if interp_method == 'interp_quad':
+                    # using interp, not sure which kind of interpolation is used here
+                    f = interpolate.interp1d(np.radians(grados), case.A_coef[i, :], kind = 'quadratic')
+                elif interp_method == 'lagrange':    
+                    # lagrange interpolation
+                    f = lagrange(np.radians(grados), case.A_coef[i, :])   
+                elif interp_method == 'Rbf': 
+                    # Radial Basis Fuction
+                    f = Rbf(np.radians(grados), case.A_coef[i, :])
+                case.f.append(f)
+    return  
+
+def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity=True,compare_results = False):     
+    # User inputs
+    field = case.field                                            # fields available: U, P
+    angle_new = wind_dir
+    wind_ref = case.wind_ref
+    use_SVD = case.use_SVD                                         # perform SVD or not
+    subtract_mean = case.subtract_mean                                   # subtract mean for SVD
+    interp_method = case.interp_method                                  # interp_quad, lagrange,Rbf
+    grados = case.grados                                    # angles available
+    fillValue = case.fillValue                                       # random high value to fill-in my mesh interpolator
+    mesh_interpolation = case.mesh_interpolation                           # interpolation to be used by griddata
+    rotateMesh = case.rotateMesh
+    useRefMeshForProjection = case.useRefMeshForProjection
+    root_data = fr'{case.root_data}\{case.folder_evaluation}'  
+    file_test = case.file_test 
+
+    if use_SVD:
         # interpolation to find the new coefficients
-        new_coef = np.zeros([ A_coef.shape[0],1])
-        for i in range(A_coef.shape[0]):
-            if interp_method == 'interp_quad':
-                # using interp, not sure which kind of interpolation is used here
-                f = interpolate.interp1d(np.radians(grados), A_coef[i, :], kind = 'quadratic')
-            elif interp_method == 'lagrange':    
-                # lagrange interpolation
-                f = lagrange(np.radians(grados), A_coef[i, :])   
-            elif interp_method == 'Rbf': 
-                # Radial Basis Fuction
-                f = Rbf(np.radians(grados), A_coef[i, :])
-            new_coef[i,0] = f(np.radians(angle_new))
+        new_coef = np.zeros([ case.A_coef.shape[0],1])
+        for i in range(case.A_coef.shape[0]):
+            new_coef[i,0] = case.f[i](np.radians(angle_new))
         # obtenemos el nuevo campo:
-        field_new = np.matmul(u[:,:dofr], np.array(new_coef).reshape(-1, 1)) 
+        field_new = np.matmul(case.u[:,:case.dofr], np.array(new_coef).reshape(-1, 1)) 
         if subtract_mean:
-            field_new[:,0] = addMean(field_new[:,0], data_training_mean)    #add mean
+            field_new[:,0] = addMean(field_new[:,0], case.data_training_mean)    #add mean
     
         # comparing basis projection error, this is the minimum error ROM can achieve
         if compare_results: 
@@ -525,17 +542,17 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
             if rotateMesh:
                 coords_test = rotate_Mesh(coords_test, angle_new)
             if useRefMeshForProjection:
-                field_true = projectFieldToNewMesh(coords_test, field_true, coords_ref, mesh_interpolation ,fillValue, rescale=True)
+                field_true = projectFieldToNewMesh(coords_test, field_true,case. coords_ref, mesh_interpolation ,fillValue, rescale=True)
             if subtract_mean:
-                field_true[:,0] = subtractMean(field_true[:,0], data_training_mean) 
-            actual_coef = np.matmul(np.transpose(u[:,:dofr]), field_true)   
-            field_true_recreated = np.matmul(u[:,:dofr], actual_coef)
+                field_true[:,0] = subtractMean(field_true[:,0], case.data_training_mean) 
+            actual_coef = np.matmul(np.transpose(case.u[:,:case.dofr]), field_true)   
+            field_true_recreated = np.matmul(case.u[:,:case.dofr], actual_coef)
             if subtract_mean:
-                field_true_recreated[:,0] = addMean(field_true_recreated[:,0], data_training_mean) 
+                field_true_recreated[:,0] = addMean(field_true_recreated[:,0], case.data_training_mean) 
             if useRefMeshForProjection:
-                field_true_recreated = projectFieldToNewMesh(coords_ref, field_true_recreated, coords_test, mesh_interpolation ,fillValue, rescale=True)
+                field_true_recreated = projectFieldToNewMesh(case.coords_ref, field_true_recreated, coords_test, mesh_interpolation ,fillValue, rescale=True)
                 # correct noSlip BCs voilated due to interpolation
-                field_true_recreated[boundaryNodes] = 0.0
+                field_true_recreated[case.boundaryNodes] = 0.0
             if rotateMesh:
                 coords_test = rotate_Mesh(coords_test, -angle_new)
             dir_new_file = f_vtk.array_to_file_vtk(root_data,f'{field}_reference_{angle_new}' ,f'{field}_angle_{angle_new}_romRecreated',field_true_recreated, field)
@@ -565,9 +582,9 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
         # Project back the field to its original mesh     
         _, coords_new = f_vtk.files_vtk_to_array(root_data, [f'{field}_surfaces_{angle_new}'],getCoords=True)
         coords_new = rotate_Mesh(coords_new, angle_new)
-        field_new = projectFieldToNewMesh(coords_ref, field_new, coords_new, mesh_interpolation ,fillValue, rescale=True)
+        field_new = projectFieldToNewMesh(case.coords_ref, field_new, coords_new, mesh_interpolation ,fillValue, rescale=True)
         # correct noSlip BCs voilated due to interpolation
-        field_new[boundaryNodes] = 0.0
+        field_new[case.boundaryNodes] = 0.0
     
     if rotateMesh:
         # Rotate back the field as per its angle         
@@ -579,14 +596,16 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
         field_true, coords_test = f_vtk.files_vtk_to_array(root_data, file_test,getCoords=True)
         diff_fieldInterp = np.subtract(field_true[:,0],field_new[:,0])
         diff_fieldInterp_norm = np.linalg.norm(diff_fieldInterp,2)/np.linalg.norm(field_true,2)
+        print (f'Rel L2 error norm = {diff_fieldInterp_norm}')
             
         # Plotting original and interpolated fields
         field_true, coords_test = f_vtk.files_vtk_to_array(root_data, file_test,getCoords=True)
         plotTwoFields(field_true,coords_test,field_new,coords_test)
     else:
-        # Plot interpolated field only
-        _, coords_test = f_vtk.files_vtk_to_array(root_data, [f'{field}_reference_0'],getCoords=True)
-        plotField(field_new,coords_test)
+        # # Plot interpolated field only
+        # _, coords_test = f_vtk.files_vtk_to_array(root_data, [f'{field}_reference_0'],getCoords=True)
+        # plotField(field_new,coords_test)
+        pass
     
     # Scale as per actual wind speed
     if scale_velocity: field_new = field_new * (wind_speed/wind_ref)
@@ -604,7 +623,7 @@ if __name__ == "__main__":
     # User inputs
     inputs = case()
     inputs.field = "U"                                            # fields available: U, P
-    inputs.angle_new = 65
+    inputs.angle_new = 237
     inputs.use_SVD = True                                         # perform SVD or not
     inputs.subtract_mean = True                                   # subtract mean for SVD
     inputs.interp_method = 'Rbf'                                  # interp_quad, lagrange,Rbf
@@ -621,10 +640,11 @@ if __name__ == "__main__":
     inputs.day = 3
     inputs.hour = 18
     
-    inputs.root_data = r"C:\Zulkee\RDT\RDTSimulations\project_buildingMachineLearning"  
+    inputs.root_data = r"C:\Zulkee\RDT\RDTSimulations\caseStudy_Annualization\wind\development_buildingMachineLearning"  
     inputs.file_test = ["{}_surfaces_{}".format(inputs.field, str(inputs.angle_new))] 
     
     # Calculations
     # data = prepareData(inputs)
     # trainModel(inputs, data)
+    readTrainedData(inputs)
     field = evaluateModel(inputs, wind_speed= 5, wind_dir=inputs.angle_new, scale_velocity=False, compare_results = True)

@@ -144,11 +144,11 @@ def files_vtk_to_array(root_data, files, getCoords = False):
     Tour between vtk files:
     This block is used to open each of the cases and attach their fields to an array
     '''
-    print("Estamos en files_vtk_to_array\n")
+    # print("Estamos en files_vtk_to_array\n")
 
     for count, file in enumerate(files):  # donde file es cada uno de los ficheros vtk.
 
-        print("Leyendo el fichero {}: ".format(file))
+        # print("Leyendo el fichero {}: ".format(file))
 
         # Creamos la dirección completa del actual fichero .vtk
         dir_file = os.path.join(root_data, file + ".vtk")
@@ -279,7 +279,11 @@ def array_to_file_vtk(root_data, old_file, new_file,new_array,field):
 
     return new_dir_file
 
-def writeFieldVTK(case, field_new,wind_dir):
+def writeField_vtk(case, field_new,wind_dir):
+    """
+    writes the field in vtk with a specific filename
+    Mesh of file '{field}_reference_0.vtk' is used
+    """
     root_data = fr'{case.root_data}\{case.folder_evaluation}'  
     field = case.field
     month = case.month
@@ -287,6 +291,18 @@ def writeFieldVTK(case, field_new,wind_dir):
     hour = case.hour
     file_new = f'{field}_{hour}_{day}_{month}_angle_{wind_dir}'
     array_to_file_vtk(root_data, f'{field}_reference_0',file_new, field_new, field)  
+    return
+
+def writeCutOffMap_vtk(case,cutOffVoilationMap,wind_cutoffs):
+    """
+    writes the writeCutOffMap_vtk in vtk with a specific filename.
+    Mesh of file '{field}_reference_0.vtk' is used
+    """
+    root_data = fr'{case.root_data}\{case.folder_evaluation}'  
+    field = case.field
+    for icase in range(case.ncutoffs):
+        file_new = f'{field}_cutOffVoilationMap_{wind_cutoffs[icase]}'
+        array_to_file_vtk(root_data, f'{field}_reference_0',file_new, cutOffVoilationMap[:,icase], field)  
     return
 # ************************** LIMPIEZA PARA FICHERO DE REFERENCIA *****************************
 
