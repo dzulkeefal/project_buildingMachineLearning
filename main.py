@@ -18,7 +18,7 @@ except:
 import sys
 import os
 # adding scripts folder to python path
-cwd = os.getcwd()
+cwd = os.path.dirname(__file__)
 sys.path.append(fr'{cwd}\scripts')
 
 from def_classes import case
