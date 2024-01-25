@@ -23,14 +23,9 @@ sys.path.append(fr'{cwd}')
 
 import numpy as np
 import func_vtk as f_vtk
-# import svd_interp as svd_op
-# import plotting_libr as plt_lib
-# import vtk
-# from vtk.util.numpy_support import vtk_to_numpy
 from scipy import interpolate
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
-# import matplotlib.patches as patches
 from scipy.interpolate import lagrange, Rbf
 import h5py
 
@@ -131,6 +126,26 @@ def findNodesInsideGeom(coords, geomBoxExtension):
     for inode in range(coords.shape[0]):
         if abs(coords[inode][0])  < geomBoxExtension and abs(coords[inode][1])  < geomBoxExtension:
             print ('node no.',inode,'with coords',coords[inode][0],coords[inode][1],'is inside geom')
+    return
+
+def plotField(field1,coords1):
+    '''
+    Plots contours for fields as per given coords
+    '''
+    # finding the max value of the field
+    val_max = np.max(field1)
+    val_min = np.min(field1)
+    # val_min = 0
+    step = 0.1
+    # print ('val_max: ', val_max,' and val_min:',val_min)
+    # plotting and comparing the interpolated array
+    fig, (ax1) = plt.subplots(ncols=1)  
+    levels = np.arange(val_min, val_max, step)
+    # ax1.tricontour(coords1[:,0], coords1[:,1], field1[:,0], levels=15, linewidths=0.1, colors='k')
+    cntr1 = ax1.tricontourf(coords1[:,0], coords1[:,1], field1[:,0], levels=levels, cmap="RdBu_r")
+    fig.colorbar(cntr1, ax=ax1)
+    
+    plt.show()
     return
 
 def plotTwoFields(field1,coords1,field2,coords2):
@@ -294,6 +309,8 @@ def prepareData(case):
     root_data = fr'{case.root_data}\{case.folder_training}'  
     file_refMesh = case.file_refMesh
     file_boun = case.file_boun
+    file_basis = case.file_basis
+    file_coefs = case.file_coefs
     
     # Delete previous results
     for filename in glob.glob(fr'{root_data}\*_mode_*.vtk'):
@@ -304,10 +321,14 @@ def prepareData(case):
        os.remove(filename)  
     for filename in glob.glob(fr'{root_data}\basis'):
        os.remove(filename)
-    for filename in glob.glob(fr'{root_data}\mesh.txt'):
+    for filename in glob.glob(fr'{root_data}\{file_refMesh}'):
         os.remove(filename)
-    for filename in glob.glob(fr'{root_data}\coefs.txt'):
+    for filename in glob.glob(fr'{root_data}\{file_coefs}'):
         os.remove(filename)
+    for filename in glob.glob(fr'{root_data}\{file_boun}'):
+        os.remove(filename)    
+    for filename in glob.glob(fr'{root_data}\{file_basis}'):
+        os.remove(filename)         
          
     # Copy the mesh file 0 degree and unknown angle
     angles_forFieldRemoval = [0,angle_new]
@@ -469,8 +490,8 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
             boundaryNodes = readBoundaryNodes(fr'{root_data}\{file_boun}')
 
         # # Plotting coefficients    
-        # isample = np.arange(1,A_coef.shape[0]+1)
-        # for i in range(1,A_coef.shape[0]):
+        # isample = np.arange(1,A_coef.shape[1]+1)
+        # for i in range(A_coef.shape[0]):
         #     plt.plot (isample,A_coef[i,:], label=i+1)
         # plt.legend()
         # plt.show()
@@ -562,11 +583,16 @@ def evaluateModel(case,wind_speed, wind_dir,data_training = None, scale_velocity
         # Plotting original and interpolated fields
         field_true, coords_test = f_vtk.files_vtk_to_array(root_data, file_test,getCoords=True)
         plotTwoFields(field_true,coords_test,field_new,coords_test)
+    else:
+        # Plot interpolated field only
+        _, coords_test = f_vtk.files_vtk_to_array(root_data, [f'{field}_reference_0'],getCoords=True)
+        plotField(field_new,coords_test)
     
     # Scale as per actual wind speed
     if scale_velocity: field_new = field_new * (wind_speed/wind_ref)
-    # Vamos a crear el nuevo fichero vtk con el nuevo campo a angle_new grados
-    dir_new_file_rotated = f_vtk.array_to_file_vtk(root_data, f'{field}_reference_{angle_new}',f'{field}_angle_{angle_new}_interp', field_new, field)  
+    if compare_results:
+        # Vamos a crear el nuevo fichero vtk con el nuevo campo a angle_new grados
+        dir_new_file_rotated = f_vtk.array_to_file_vtk(root_data, f'{field}_reference_{angle_new}',f'{field}_angle_{angle_new}_interp', field_new, field)  
 
     return field_new
 
@@ -586,7 +612,7 @@ if __name__ == "__main__":
     # inputs.grados = [degree_div_10*10 for degree_div_10 in list(range(5,9))]                         # angles available
     inputs.ric = 1.00                                             # information content to retain in the POD modes 
     inputs.mesh_interpolation = 'linear'                           # interpolation to be used by griddata
-    inputs.npoins = 1000                                           # no of points for created Structured reference mesh
+    inputs.npoins = 300                                           # no of points for created Structured reference mesh
     inputs.rotateMesh = False
     inputs.useRefMeshForProjection = False
     inputs.folder_training = 'training_urbanExample'

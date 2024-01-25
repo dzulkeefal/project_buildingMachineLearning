@@ -279,7 +279,7 @@ def array_to_file_vtk(root_data, old_file, new_file,new_array,field):
 
     return new_dir_file
 
-def plotFieldInParaview(case, field_new,wind_dir):
+def writeFieldVTK(case, field_new,wind_dir):
     root_data = fr'{case.root_data}\{case.folder_evaluation}'  
     field = case.field
     month = case.month

@@ -23,7 +23,7 @@ sys.path.append(fr'{cwd}\scripts')
 
 from def_classes import case
 from func_interpolationModel import prepareData,trainModel,evaluateModel
-from func_vtk import plotFieldInParaview
+from func_vtk import writeFieldVTK
 from func_weather import readWindData
 
 #%%  FUNCTIONS 
@@ -33,7 +33,7 @@ from func_weather import readWindData
 inputs = case()
 inputs.file_weather = r'C:\ladybug\ESP_Madrid.082210_IWEC\ESP_Madrid.082210_IWEC.epw'
 inputs.month = 8                                              
-inputs.day = 3
+inputs.day  = 23
 inputs.hour = 18
 
 inputs.root_data = fr"{cwd}"  
@@ -44,5 +44,5 @@ wind_speed, wind_dir = readWindData (inputs)
 # data = prepareData(inputs)
 # trainModel(inputs, data)
 field = evaluateModel(inputs, wind_speed, wind_dir)
-plotFieldInParaview(inputs,field,wind_dir)
+writeFieldVTK(inputs,field,wind_dir)
 
