@@ -26,6 +26,7 @@ class case:
     wind_ref = 5                                           # reference wind speed in m/s 
     ncases = 0                                             # total nummber of cases to be analysed
     initial_step = True                                    # checking for the first run to initialize some var if needed
+    icase = 0                                              # case number of the current case in the loop
     
     grados = [degree_div_10*10 for degree_div_10 in list(range(37))]                         # angles available
     interp_method = 'Rbf'                                  # interp_quad, lagrange,Rbf
@@ -33,7 +34,6 @@ class case:
     
     use_SVD = True                                         # perform SVD or not
     subtract_mean = True                                   # subtract mean for SVD
-    fillValue = 1000                                       # random high value to fill-in my mesh interpolator
     ric = 1.00                                             # information content to retain in the POD modes 
     dofr = 0                                               # ROM dofs
     s = None                                               # SVD eigen values
@@ -43,6 +43,7 @@ class case:
     
     
     mesh_interpolation = 'linear'                          # interpolation to be used by griddata
+    fillValue = 1000                                       # random high value to fill-in my mesh interpolator
     npoins = 500                                           # no of points for created Structured reference mesh
     rotateMesh = False                                     # rotate mesh to have similar inlet veloc direction
     useRefMeshForProjection = False                        # project case meshes to a common ref mesh
@@ -62,11 +63,17 @@ class case:
     month = 0                                              
     day = 0
     hour = 0
-    cutoffMapping = None
+    cutoffMapping = None                                   # contains the cutoff mapping for all nodes and cutoffs
+    
+    #grashopper
+    gh_grid = None                                         # nodes of grass hopper mesh
+    file_ghGrid = 'ghGridCoords.csv'                       # file containg nodes of gh mesh
+    file_windGh = 'ghWindFromCFD.csv'                      # file containing field from CFD for gh. Each col corresponds to a gh time step
+    gh_field = None                                        # field from CFD to be used by gh
     
     # Functions
     
-    def __init__(self,file_weather,root_data, ncases,ncutoffs):
+    def __init__(self,file_weather=None,root_data=None, ncases=None,ncutoffs=None):
         self.file_weather = file_weather
         self.root_data = root_data
         self.ncases = ncases

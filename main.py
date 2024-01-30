@@ -22,19 +22,19 @@ import numpy as np
 cwd = os.path.dirname(__file__)
 sys.path.append(fr'{cwd}\scripts')
 
+#%%  FUNCTIONS 
 from def_classes import case
 from func_interpolationModel import prepareData,trainModel,evaluateModel,readTrainedData
 from func_vtk import writeField_vtk,writeCutOffMap_vtk
 from func_weather import readWindData,updateCutoffMapping_wind,calcHoursVoilated_wind
-
-#%%  FUNCTIONS 
+from func_gh import calculateFieldForGrasshopper
     
 #%% MAIN
 # User inputs
 file_weather = r'C:\ladybug\ESP_Madrid.082210_IWEC\ESP_Madrid.082210_IWEC.epw'
-months = np.arange(1,13,1)                                              
-days  = np.arange(1,29,1)
-hours = np.arange(1,24,3)
+months = np.arange(6,7,1)                                              
+days  = np.arange(6,7,1)
+hours = np.arange(14,19,1)
 wind_cutoffs = [5,10,15]                                               # list of wind cutoff in m/s
 
 # Calculations
@@ -53,9 +53,10 @@ for current_case.month in months:
             # trainModel(current_case, data)
             readTrainedData(current_case)
             field = evaluateModel(current_case, wind_speed, wind_dir)
-            updateCutoffMapping_wind(current_case,wind_cutoffs,field) 
-            
-cutOffVoilationMap = calcHoursVoilated_wind(current_case)
+            calculateFieldForGrasshopper(current_case,field)
+            # updateCutoffMapping_wind(current_case,wind_cutoffs,field) 
+            current_case.icase += 1
+# cutOffVoilationMap = calcHoursVoilated_wind(current_case)
 # writeField_vtk(current_case,field,wind_dir)
-writeCutOffMap_vtk(current_case,cutOffVoilationMap,wind_cutoffs)
+# writeCutOffMap_vtk(current_case,cutOffVoilationMap,wind_cutoffs)
 

@@ -47,9 +47,12 @@ def updateCutoffMapping_wind(case_weather,cutoffs,field):
     '''
     Update the Cutoff mapping as per the new field and cutoffs list
     '''
-    if case_weather.initial_step == True:
-        case_weather.cutoffMapping = np.zeros([len(field),len(cutoffs)])
-        case_weather.initial_step = False
+
+    try:
+        if case_weather.cutoffMapping == None:
+            case_weather.cutoffMapping = np.zeros([len(field),len(cutoffs)])
+    except:
+        pass
         
     for icutoff in range(len(cutoffs)):
         for inode in range(len(field)):
